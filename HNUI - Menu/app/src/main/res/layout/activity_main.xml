@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:orientation="vertical"
+	android:gravity="left|center"
+	android:paddingLeft="10dp">
+
+	<TextView
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:text="请通过LSPosed等框架注入，而非直接打开。"
+		android:textAppearance="?android:attr/textAppearanceLarge"
+		android:textSize="20sp"/>
+
+	<TextView
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:text="https://github.com/ChenQingMua/HiveNext-UI"
+		android:textAppearance="?android:attr/textAppearanceMedium"
+		android:textSize="18sp"/>
+
+</LinearLayout>
+
