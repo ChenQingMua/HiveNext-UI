@@ -1,5 +1,6 @@
 # HiveNext-UI
 通过XPosed实现的游戏辅助UI模板。
+__严禁用于任何非法用途！__
 # 交流
 QQ交流群：[975967340](https://qm.qq.com/q/KnEh9Rm1iu)。
 
