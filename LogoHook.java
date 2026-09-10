@@ -30,81 +30,82 @@ public class LogoHook implements IXposedHookLoadPackage {
     private static TextView tvTime;
     private static TextView tvPkg;
     private static TextView tvLogo;
-    private static float hue = 0f;
     private static final Handler handler = new Handler(Looper.getMainLooper());
     private static WeakReference<Activity> currentActivityRef;
+    private static GradientManager gradientManager;
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) {
-                    final Activity activity = (Activity) param.thisObject;
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                final Activity activity = (Activity) param.thisObject;
 
                 if (currentActivityRef != null && currentActivityRef.get() == activity) {
                     updateVisibility();
                     return;
                 }
 
+                cleanup();
+                currentActivityRef = new WeakReference<Activity>(activity);
 
-                    cleanup();
-                    currentActivityRef = new WeakReference<Activity>(activity);
+                windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
 
-                    windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
+                gradientManager = GradientManager.getInstance();
+                gradientManager.start();
 
-                    container = new LinearLayout(activity);
-                    container.setOrientation(LinearLayout.VERTICAL);
-                    //container.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
+                container = new LinearLayout(activity);
+                container.setOrientation(LinearLayout.VERTICAL);
 
-                    tvTime = new TextView(activity);
-                    tvTime.setText(getCurrentTime());
-                    tvTime.setTextSize(14);
-                    tvTime.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
-                    tvTime.setBackgroundColor(Color.parseColor("#8A000000"));
-                    LinearLayout.LayoutParams lpTime = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    container.addView(tvTime, lpTime);
+                tvTime = new TextView(activity);
+                tvTime.setText(getCurrentTime());
+                tvTime.setTextSize(14);
+                tvTime.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
+                tvTime.setBackgroundColor(Color.parseColor("#8A000000"));
+                LinearLayout.LayoutParams lpTime = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                container.addView(tvTime, lpTime);
 
-                    tvPkg = new TextView(activity);
-                    tvPkg.setText(getActivityInfo(activity));
-                    tvPkg.setTextSize(14);
-                    tvPkg.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
-                    tvPkg.setBackgroundColor(Color.parseColor("#8A000000"));
-                    LinearLayout.LayoutParams lpPkg = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    container.addView(tvPkg, lpPkg);
+                tvPkg = new TextView(activity);
+                tvPkg.setText(getActivityInfo(activity));
+                tvPkg.setTextSize(14);
+                tvPkg.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
+                tvPkg.setBackgroundColor(Color.parseColor("#8A000000"));
+                LinearLayout.LayoutParams lpPkg = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                container.addView(tvPkg, lpPkg);
 
-                    tvLogo = new TextView(activity);
-                    tvLogo.setText("Hive Next");
-                    tvLogo.setTextSize(14);
-                    tvLogo.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
-                    tvLogo.setBackgroundColor(Color.parseColor("#8A000000"));
-                    container.addView(tvLogo, new LinearLayout.LayoutParams(
-                                          LinearLayout.LayoutParams.WRAP_CONTENT,
-                                          LinearLayout.LayoutParams.WRAP_CONTENT
-                                      ));
+                tvLogo = new TextView(activity);
+                tvLogo.setText("Hive Next");
+                tvLogo.setTextSize(14);
+                tvLogo.setPadding(dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4), dip2px(activity, 4));
+                tvLogo.setBackgroundColor(Color.parseColor("#8A000000"));
+                container.addView(tvLogo, new LinearLayout.LayoutParams(
+                                      LinearLayout.LayoutParams.WRAP_CONTENT,
+                                      LinearLayout.LayoutParams.WRAP_CONTENT
+                                  ));
 
-                    logoParams = new WindowManager.LayoutParams();
-                    logoParams.type = WindowManager.LayoutParams.TYPE_APPLICATION;
-                    logoParams.format = PixelFormat.TRANSLUCENT;
-                    logoParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
-                    logoParams.gravity = Gravity.BOTTOM | Gravity.START;
-                    logoParams.width = WindowManager.LayoutParams.MATCH_PARENT;
-                    logoParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                logoParams = new WindowManager.LayoutParams();
+                logoParams.type = WindowManager.LayoutParams.TYPE_APPLICATION;
+                logoParams.format = PixelFormat.TRANSLUCENT;
+                logoParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+                logoParams.gravity = Gravity.BOTTOM | Gravity.START;
+                logoParams.width = WindowManager.LayoutParams.MATCH_PARENT;
+                logoParams.height = WindowManager.LayoutParams.WRAP_CONTENT;
 
-                    try {
-                        windowManager.addView(container, logoParams);
-                    } catch (Exception e) {
-                        XposedBridge.log("[HiveNext] Logo add error: " + e.getMessage());
-                    }
-
-                    startUpdateLoop();
+                try {
+                    windowManager.addView(container, logoParams);
+                } catch (Exception e) {
+                    XposedBridge.log("[HiveNext] Logo add error: " + e.getMessage());
                 }
-            });
+
+                startUpdateLoop();
+            }
+        });
     }
 
     private void cleanup() {
@@ -114,6 +115,9 @@ public class LogoHook implements IXposedHookLoadPackage {
             } catch (Exception e) {
             }
         }
+        if (gradientManager != null) {
+            gradientManager.stop();
+        }
         container = null;
         tvTime = null;
         tvPkg = null;
@@ -122,31 +126,29 @@ public class LogoHook implements IXposedHookLoadPackage {
         windowManager = null;
     }
 
-private void startUpdateLoop() {
-    handler.postDelayed(new Runnable() {
-        @Override
-        public void run() {
-            if (tvTime != null && tvPkg != null && tvLogo != null && container != null) {
-                updateVisibility();
-                tvTime.setText(getCurrentTime());
+    private void startUpdateLoop() {
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (tvTime != null && tvPkg != null && tvLogo != null && container != null) {
+                    updateVisibility();
+                    tvTime.setText(getCurrentTime());
 
-                tvTime.setTextColor(getRainbowColor((hue + 0f) % 360f));   
-                tvPkg.setTextColor(getRainbowColor((hue + 40f) % 360f));    
-                tvLogo.setTextColor(getRainbowColor((hue + 80f) % 360f));   
+                    tvTime.setTextColor(GradientManager.getRainbowColorWithOffset(0f));
+                    tvPkg.setTextColor(GradientManager.getRainbowColorWithOffset(40f));
+                    tvLogo.setTextColor(GradientManager.getRainbowColorWithOffset(80f));
 
-                hue = (hue + 4f) % 360f;
-                handler.postDelayed(this, 50);
+                    handler.postDelayed(this, 50);
+                }
             }
-        }
-    }, 20);
-}
-
+        }, 20);
+    }
 
     private void updateVisibility() {
         synchronized (FeatureState.activeFeatures) {
             boolean hasSideWatermark = false;
             for (int i = 0; i < FeatureState.activeFeatures.size(); i++) {
-                if ("水印".equals(FeatureState.activeFeatures.get(i))) {
+                if ("信息".equals(FeatureState.activeFeatures.get(i))) {
                     hasSideWatermark = true;
                     break;
                 }
@@ -159,12 +161,6 @@ private void startUpdateLoop() {
                 }
             }
         }
-    }
-
-
-    private int getRainbowColor(float hue) {
-        float[] hsv = new float[] { hue, 1.0f, 1.0f };
-        return Color.HSVToColor(hsv);
     }
 
     private int dip2px(Activity activity, float dp) {
@@ -188,4 +184,3 @@ private void startUpdateLoop() {
         return activity.getPackageName() + "." + activity.getClass().getSimpleName();
     }
 }
-

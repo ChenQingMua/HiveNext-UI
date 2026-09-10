@@ -15,9 +15,9 @@ public class HookInit implements IXposedHookLoadPackage {
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         new LogoHook().handleLoadPackage(lpparam);
         new MenuHook().handleLoadPackage(lpparam);
-        new WaterHook().handleLoadPackage(lpparam);  //该功能已弃用，在MenuHook类MainMenu功能列表里面添加屏幕水印以启用。
+        new WaterHook().handleLoadPackage(lpparam);  
         new ListHook().handleLoadPackage(lpparam);
-        new NotificationHook().handleLoadPackage(lpparam); //该功能已弃用，在MenuHook类MainMenu功能列表里面添加开关通知以启用。
+        new NotificationHook().handleLoadPackage(lpparam);
         new ShortcutHook().handleLoadPackage(lpparam);
         
         XposedHelpers.findAndHookMethod(Activity.class, "onCreate", Bundle.class, new XC_MethodHook() {

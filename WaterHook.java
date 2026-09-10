@@ -43,8 +43,9 @@ public class WaterHook implements IXposedHookLoadPackage {
                 currentActivityRef = new WeakReference<Activity>(activity);
 
                 watermark = new TextView(activity);
+				watermark.setSingleLine(true);
                 watermark.setText("Hive Next");
-                watermark.setTextSize(91);
+                watermark.setTextSize(67);
                 watermark.setTextColor(Color.parseColor("#80D500F9"));
                 watermark.setGravity(Gravity.CENTER);
 
@@ -97,7 +98,7 @@ public class WaterHook implements IXposedHookLoadPackage {
         synchronized (FeatureState.activeFeatures) {
             boolean hasScreenWatermark = false;
             for (int i = 0; i < FeatureState.activeFeatures.size(); i++) {
-                if ("屏幕水印".equals(FeatureState.activeFeatures.get(i))) {
+                if ("水印".equals(FeatureState.activeFeatures.get(i))) {
                     hasScreenWatermark = true;
                     break;
                 }

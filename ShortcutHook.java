@@ -28,7 +28,7 @@ public class ShortcutHook implements IXposedHookLoadPackage {
     private static WindowManager windowManager;
     private static final Handler handler = new Handler(Looper.getMainLooper());
     private static WeakReference<Activity> currentActivityRef;
-    private static float hue = 0f;
+    private static GradientManager gradientManager;
 
     private static final Map<String, ShortcutView> shortcuts = new HashMap<String, ShortcutView>();
 
@@ -52,6 +52,9 @@ public class ShortcutHook implements IXposedHookLoadPackage {
                 currentActivityRef = new WeakReference<Activity>(activity);
                 windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
 
+                gradientManager = GradientManager.getInstance();
+                gradientManager.start();
+
                 startGradientLoop();
             }
         });
@@ -66,23 +69,21 @@ public class ShortcutHook implements IXposedHookLoadPackage {
                 }
             }
         }
+        if (gradientManager != null) {
+            gradientManager.stop();
+        }
         shortcuts.clear();
         windowManager = null;
     }
 
     public static void toggleShortcut(Context context, String featureName) {
         if (shortcuts.containsKey(featureName)) {
-          
             ShortcutView shortcut = shortcuts.get(featureName);
             try {
                 windowManager.removeView(shortcut.view);
             } catch (Exception e) {
             }
             shortcuts.remove(featureName);
-            // synchronized (FeatureState.activeFeatures) {
-            //     FeatureState.activeFeatures.remove(featureName);
-            // }
-            // MenuHook.syncButtonState(featureName, false);
         } else {
             createShortcut(context, featureName);
         }
@@ -111,6 +112,7 @@ public class ShortcutHook implements IXposedHookLoadPackage {
 
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.parseColor("#54FFFFFF"));
+        bg.setCornerRadius(dip2px(context, 6));
         shortcutView.setBackgroundDrawable(bg);
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams();
@@ -135,13 +137,6 @@ public class ShortcutHook implements IXposedHookLoadPackage {
         shortcut.params = params;
         shortcut.featureName = featureName;
         shortcuts.put(featureName, shortcut);
-
-        // synchronized (FeatureState.activeFeatures) {
-        //     if (!FeatureState.activeFeatures.contains(featureName)) {
-        //         FeatureState.activeFeatures.add(featureName);
-        //     }
-        // }
-        // MenuHook.syncButtonState(featureName, true);
 
         updateShortcutStyle(shortcut);
 
@@ -243,7 +238,6 @@ public class ShortcutHook implements IXposedHookLoadPackage {
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                hue = (hue + 2f) % 360f;
                 for (ShortcutView shortcut : shortcuts.values()) {
                     if (shortcut != null && shortcut.view != null) {
                         updateShortcutStyle(shortcut);
@@ -261,18 +255,17 @@ public class ShortcutHook implements IXposedHookLoadPackage {
         GradientDrawable bg = new GradientDrawable();
 
         if (isOn) {
-            bg.setColor(getRainbowColor(hue));
+            float offset = FeatureList.getFeatureOffset(shortcut.featureName);
+            int color = GradientManager.getRainbowColorWithOffset(offset);
+            bg.setColor(color);
+            bg.setCornerRadius(dip2px(shortcut.view.getContext(), 6));
             shortcut.textView.setTextColor(COLOR_WHITE);
         } else {
             bg.setColor(COLOR_TRANSPARENT);
+            bg.setCornerRadius(dip2px(shortcut.view.getContext(), 6));
             shortcut.textView.setTextColor(COLOR_BLUE);
         }
         shortcut.view.setBackgroundDrawable(bg);
-    }
-
-    private static int getRainbowColor(float hue) {
-        float[] hsv = new float[] { hue, 1.0f, 1.0f };
-        return Color.HSVToColor(hsv);
     }
 
     private static int dip2px(Context context, float dp) {

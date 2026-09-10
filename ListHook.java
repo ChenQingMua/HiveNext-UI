@@ -34,8 +34,8 @@ public class ListHook implements IXposedHookLoadPackage {
     private static LinearLayout container;
     private static WindowManager.LayoutParams listParams;
     private static final Handler handler = new Handler(Looper.getMainLooper());
-    private static float hue = 0f;
     private static WeakReference<Activity> currentActivityRef;
+    private static GradientManager gradientManager;
     
     private static List<String> lastFeatures = new ArrayList<String>();
     private static Map<String, TextView> viewCache = new HashMap<String, TextView>();
@@ -57,6 +57,9 @@ public class ListHook implements IXposedHookLoadPackage {
                 currentActivityRef = new WeakReference<Activity>(activity);
 
                 windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
+
+                gradientManager = GradientManager.getInstance();
+                gradientManager.start();
 
                 container = new LinearLayout(activity);
                 container.setOrientation(LinearLayout.VERTICAL);
@@ -89,6 +92,9 @@ public class ListHook implements IXposedHookLoadPackage {
                 windowManager.removeView(container);
             } catch (Exception e) {
             }
+        }
+        if (gradientManager != null) {
+            gradientManager.stop();
         }
         container = null;
         listParams = null;
@@ -160,7 +166,6 @@ public class ListHook implements IXposedHookLoadPackage {
                     updateFeatureList(activity, sortedFeatures);
                 }
 
-                hue = (hue + 3.75f) % 360f;
                 handler.postDelayed(this, 20);
             }
         }, 20);
@@ -234,9 +239,10 @@ public class ListHook implements IXposedHookLoadPackage {
     }
 
     private float getItemHue(int index, int total) {
-        if (total <= 1) return hue;
+        float baseHue = gradientManager != null ? gradientManager.getCurrentHue() : 0f;
+        if (total <= 1) return baseHue;
         float step = total <= 12 ? 30f : 360f / total;
-        return (hue - (index * step) + 720f) % 360f;
+        return (baseHue - (index * step) + 720f) % 360f;
     }
 
     private int getRainbowColor(float hue) {

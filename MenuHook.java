@@ -31,99 +31,28 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class MenuHook implements IXposedHookLoadPackage {
 
-    private static final String TAG = "HiveNext";
-
     private static WindowManager windowManager;
     private static List<View> menuViews = new ArrayList<View>();
     private static List<WindowManager.LayoutParams> menuParamsList = new ArrayList<WindowManager.LayoutParams>();
     private static List<TextView> activeButtons = new ArrayList<TextView>();
     private static Map<String, TextView> featureButtons = new HashMap<String, TextView>();
+    private static Map<TextView, Boolean> isLastItemMap = new HashMap<TextView, Boolean>();
+    private static Map<TextView, Float> buttonOffsets = new HashMap<TextView, Float>();
     private static float lastX;
     private static float lastY;
     private static int paramX;
     private static int paramY;
-    private static float hue = 0f;
     private static final Handler handler = new Handler(Looper.getMainLooper());
     private static WeakReference<Activity> currentActivityRef;
+    private static Context appContext;
+    private static GradientManager gradientManager;
 
     private static final int COLOR_BLUE = Color.parseColor("#FF0034FF");
     private static final int COLOR_WHITE = Color.parseColor("#FFFFFFFF");
     private static final int COLOR_TRANSPARENT = Color.parseColor("#00000000");
 
-    private static final String[] COMBAT_MENU = new String[] {
-        "Combat Menu",
-        "杀戮光环",
-        "碰撞箱",
-        "自动瞄准",
-        "刀刀暴击",
-        "锁定背部",
-        "环绕",
-        "无限光环",
-        "上帝模式"
-    };
-
-    private static final String[] MOVE_MENU = new String[] {
-        "Move Menu",
-        "踏空",
-        "移速",
-        "兔子跳",
-        "飞行",
-        "飞船",
-        "喷气背包",
-        "穿墙",
-        "自动行走",
-        "自动跳跃",
-        "安全行走",
-        "虚空回弹",
-        "反击退",
-        "强制游泳",
-        "水面行走",
-        "反减速",
-        "爬墙"
-    };
-
-    private static final String[] WORLD_MENU = new String[] {
-        "World Menu",
-        "秒挖",
-        "范围破坏",
-        "自动挖床",
-        "自动搭路",
-        "防踢出",
-        "禁用器",
-        "玩家传送",
-        "建筑导入",
-        "建筑导出",
-        "自定义刷物",
-        "自动吃食",
-        "自动钓鱼",
-        "刷屏",
-        "发言绕过"
-    };
-
-    private static final String[] VISION_MENU = new String[] {
-        "Vision Menu",
-        "玩家绘制",
-        "床绘制",
-        "容器绘制",
-        "追踪线",
-        "动画",
-        "低火",
-        "无火",
-        "导入材质",
-        "3D掉落物",
-        "锁定相机",
-        "自由相机",
-        "运动相机",
-        "X-Ray",
-        "全亮",
-        "渲染手"
-    };
-
-    private static final String[] MAIN_MENU = new String[] {
-        "Hive Next",
-        "功能列表",
-        "水印"
-    };
+    private static final String[][] ALL_MENUS = FeatureList.ALL_MENUS;
+    private static final String[] DEFAULT_ENABLED = FeatureList.DEFAULT_ENABLED;
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
@@ -138,14 +67,16 @@ public class MenuHook implements IXposedHookLoadPackage {
 
                 cleanup();
                 currentActivityRef = new WeakReference<Activity>(activity);
+                appContext = activity.getApplicationContext();
 
                 windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
 
-                createMenuWindow(activity, COMBAT_MENU, 0, 0, false);
-                createMenuWindow(activity, MOVE_MENU, 0, 0, false);
-                createMenuWindow(activity, WORLD_MENU, 0, 0, false);
-                createMenuWindow(activity, VISION_MENU, 0, 0, false);
-                createMenuWindow(activity, MAIN_MENU, 0, 0, true);
+                gradientManager = GradientManager.getInstance();
+                gradientManager.start();
+
+                for (String[] menu : ALL_MENUS) {
+                    createMenuWindow(activity, menu, 0, 0);
+                }
 
                 syncActiveFeaturesToMenu();
 
@@ -164,10 +95,15 @@ public class MenuHook implements IXposedHookLoadPackage {
                 }
             }
         }
+        if (gradientManager != null) {
+            gradientManager.stop();
+        }
         menuViews.clear();
         menuParamsList.clear();
         activeButtons.clear();
         featureButtons.clear();
+        isLastItemMap.clear();
+        buttonOffsets.clear();
         windowManager = null;
     }
 
@@ -186,8 +122,8 @@ public class MenuHook implements IXposedHookLoadPackage {
         }
     }
 
-    private void createMenuWindow(final Activity activity, final String[] features, int offsetX, int offsetY, boolean defaultOn) {
-        final View menuView = createMenuView(activity, features, defaultOn);
+    private void createMenuWindow(final Activity activity, final String[] features, int offsetX, int offsetY) {
+        final View menuView = createMenuView(activity, features);
         menuViews.add(menuView);
 
         final WindowManager.LayoutParams params = new WindowManager.LayoutParams();
@@ -208,7 +144,7 @@ public class MenuHook implements IXposedHookLoadPackage {
         }
     }
 
-    private View createMenuView(final Context context, final String[] features, boolean defaultOn) {
+    private View createMenuView(final Context context, final String[] features) {
         final LinearLayout container = new LinearLayout(context);
         container.setOrientation(LinearLayout.VERTICAL);
         container.setLayoutParams(new ViewGroup.LayoutParams(
@@ -218,6 +154,7 @@ public class MenuHook implements IXposedHookLoadPackage {
 
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(Color.parseColor("#54FFFFFF"));
+        bg.setCornerRadius(dip2px(context, 6));
         container.setBackgroundDrawable(bg);
 
         final String titleText = features[0];
@@ -227,6 +164,7 @@ public class MenuHook implements IXposedHookLoadPackage {
         title.setGravity(Gravity.CENTER);
         title.setTextColor(COLOR_BLUE);
         title.setTextSize(16);
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         title.setLayoutParams(new LinearLayout.LayoutParams(
             dip2px(context, 140),
             dip2px(context, 36)
@@ -234,6 +172,12 @@ public class MenuHook implements IXposedHookLoadPackage {
 
         GradientDrawable titleBg = new GradientDrawable();
         titleBg.setColor(COLOR_WHITE);
+        titleBg.setCornerRadii(new float[]{
+            dip2px(context, 6), dip2px(context, 6),
+            dip2px(context, 6), dip2px(context, 6),
+            dip2px(context, 6), dip2px(context, 6),
+            dip2px(context, 6), dip2px(context, 6)
+        });
         
         title.setBackgroundDrawable(titleBg);
         container.addView(title);
@@ -266,9 +210,7 @@ public class MenuHook implements IXposedHookLoadPackage {
             lp.leftMargin = 0;
             lp.rightMargin = 0;
             lp.topMargin = 0;
-            if (i == features.length - 1) {
-                lp.bottomMargin = 0;
-            }
+            lp.bottomMargin = 0;
             btn.setLayoutParams(lp);
 
             boolean isAlreadyActive = false;
@@ -276,9 +218,27 @@ public class MenuHook implements IXposedHookLoadPackage {
                 isAlreadyActive = FeatureState.activeFeatures.contains(featureName);
             }
 
-            boolean isDefaultOn = defaultOn || isAlreadyActive;
+            boolean isDefaultOn = false;
+            for (String enabled : DEFAULT_ENABLED) {
+                if (featureName.equals(enabled)) {
+                    isDefaultOn = true;
+                    break;
+                }
+            }
+            
+            if (isAlreadyActive) {
+                isDefaultOn = true;
+            }
+            
             btn.setTag(isDefaultOn);
-            updateButtonStyle(btn, isDefaultOn);
+            
+            boolean isLastItem = (i == features.length - 1);
+            isLastItemMap.put(btn, isLastItem);
+            
+            float offset = FeatureList.getFeatureOffset(featureName);
+            buttonOffsets.put(btn, offset);
+            
+            updateButtonStyle(btn, isDefaultOn, isLastItem);
 
             if (isDefaultOn) {
                 activeButtons.add(btn);
@@ -298,7 +258,8 @@ public class MenuHook implements IXposedHookLoadPackage {
                     boolean isOn = btn.getTag() != null && (Boolean) btn.getTag();
                     isOn = !isOn;
                     btn.setTag(isOn);
-                    updateButtonStyle(btn, isOn);
+                    boolean isLast = isLastItemMap.containsKey(btn) && isLastItemMap.get(btn);
+                    updateButtonStyle(btn, isOn, isLast);
 
                     synchronized (FeatureState.activeFeatures) {
                         if (isOn) {
@@ -311,6 +272,14 @@ public class MenuHook implements IXposedHookLoadPackage {
                             FeatureState.activeFeatures.remove(featureName);
                             GradientDrawable resetBg = new GradientDrawable();
                             resetBg.setColor(COLOR_TRANSPARENT);
+                            if (isLast) {
+                                resetBg.setCornerRadii(new float[]{
+                                    0, 0,
+                                    0, 0,
+                                    dip2px(btn.getContext(), 6), dip2px(btn.getContext(), 6),
+                                    dip2px(btn.getContext(), 6), dip2px(btn.getContext(), 6)
+                                });
+                            }
                             btn.setBackgroundDrawable(resetBg);
                         }
                     }
@@ -356,8 +325,40 @@ public class MenuHook implements IXposedHookLoadPackage {
                             boolean isExpanded = scrollView.getVisibility() == View.VISIBLE;
                             if (isExpanded) {
                                 scrollView.setVisibility(View.GONE);
+                                GradientDrawable titleBgCollapsed = new GradientDrawable();
+                                titleBgCollapsed.setColor(COLOR_WHITE);
+                                titleBgCollapsed.setCornerRadii(new float[]{
+                                    dip2px(context, 6), dip2px(context, 6),
+                                    dip2px(context, 6), dip2px(context, 6),
+                                    dip2px(context, 6), dip2px(context, 6),
+                                    dip2px(context, 6), dip2px(context, 6)
+                                });
+                                title.setBackgroundDrawable(titleBgCollapsed);
+                                
+                                for (int i = 0; i < content.getChildCount(); i++) {
+                                    TextView child = (TextView) content.getChildAt(i);
+                                    boolean isOn = child.getTag() != null && (Boolean) child.getTag();
+                                    boolean isLast = isLastItemMap.containsKey(child) && isLastItemMap.get(child);
+                                    updateButtonStyle(child, isOn, isLast);
+                                }
                             } else {
                                 scrollView.setVisibility(View.VISIBLE);
+                                GradientDrawable titleBgExpanded = new GradientDrawable();
+                                titleBgExpanded.setColor(COLOR_WHITE);
+                                titleBgExpanded.setCornerRadii(new float[]{
+                                    dip2px(context, 6), dip2px(context, 6),
+                                    dip2px(context, 6), dip2px(context, 6),
+                                    0, 0,
+                                    0, 0
+                                });
+                                title.setBackgroundDrawable(titleBgExpanded);
+                                
+                                for (int i = 0; i < content.getChildCount(); i++) {
+                                    TextView child = (TextView) content.getChildAt(i);
+                                    boolean isOn = child.getTag() != null && (Boolean) child.getTag();
+                                    boolean isLast = isLastItemMap.containsKey(child) && isLastItemMap.get(child);
+                                    updateButtonStyle(child, isOn, isLast);
+                                }
                             }
                         }
                         return true;
@@ -417,11 +418,39 @@ public class MenuHook implements IXposedHookLoadPackage {
         });
     }
 
-    private void updateButtonStyle(TextView button, boolean isOn) {
+    private void updateButtonStyle(TextView button, boolean isOn, boolean isLastItem) {
         if (isOn) {
             button.setTextColor(COLOR_WHITE);
+            float offset = buttonOffsets.containsKey(button) ? buttonOffsets.get(button) : 0f;
+            int color = GradientManager.getRainbowColorWithOffset(offset);
+            GradientDrawable activeBg = new GradientDrawable();
+            activeBg.setColor(color);
+            if (isLastItem) {
+                activeBg.setCornerRadii(new float[]{
+                    0, 0,
+                    0, 0,
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6),
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6)
+                });
+            } else {
+                activeBg.setCornerRadius(0);
+            }
+            button.setBackgroundDrawable(activeBg);
         } else {
             button.setTextColor(COLOR_BLUE);
+            GradientDrawable resetBg = new GradientDrawable();
+            resetBg.setColor(COLOR_TRANSPARENT);
+            if (isLastItem) {
+                resetBg.setCornerRadii(new float[]{
+                    0, 0,
+                    0, 0,
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6),
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6)
+                });
+            } else {
+                resetBg.setCornerRadius(0);
+            }
+            button.setBackgroundDrawable(resetBg);
             button.getPaint().setShader(null);
             button.invalidate();
         }
@@ -431,7 +460,8 @@ public class MenuHook implements IXposedHookLoadPackage {
         TextView btn = featureButtons.get(featureName);
         if (btn != null) {
             btn.setTag(isOn);
-            updateButtonStyleStatic(btn, isOn);
+            boolean isLast = isLastItemMap.containsKey(btn) && isLastItemMap.get(btn);
+            updateButtonStyleStaticWithLast(btn, isOn, isLast);
             if (isOn) {
                 if (!activeButtons.contains(btn)) {
                     activeButtons.add(btn);
@@ -448,6 +478,14 @@ public class MenuHook implements IXposedHookLoadPackage {
                 }
                 GradientDrawable resetBg = new GradientDrawable();
                 resetBg.setColor(COLOR_TRANSPARENT);
+                if (isLast) {
+                    resetBg.setCornerRadii(new float[]{
+                        0, 0,
+                        0, 0,
+                        dip2px(btn.getContext(), 6), dip2px(btn.getContext(), 6),
+                        dip2px(btn.getContext(), 6), dip2px(btn.getContext(), 6)
+                    });
+                }
                 btn.setBackgroundDrawable(resetBg);
             }
         }
@@ -456,8 +494,54 @@ public class MenuHook implements IXposedHookLoadPackage {
     private static void updateButtonStyleStatic(TextView button, boolean isOn) {
         if (isOn) {
             button.setTextColor(COLOR_WHITE);
+            float offset = buttonOffsets.containsKey(button) ? buttonOffsets.get(button) : 0f;
+            int color = GradientManager.getRainbowColorWithOffset(offset);
+            GradientDrawable activeBg = new GradientDrawable();
+            activeBg.setColor(color);
+            button.setBackgroundDrawable(activeBg);
         } else {
             button.setTextColor(COLOR_BLUE);
+            GradientDrawable resetBg = new GradientDrawable();
+            resetBg.setColor(COLOR_TRANSPARENT);
+            button.setBackgroundDrawable(resetBg);
+            button.getPaint().setShader(null);
+            button.invalidate();
+        }
+    }
+
+    private static void updateButtonStyleStaticWithLast(TextView button, boolean isOn, boolean isLastItem) {
+        if (isOn) {
+            button.setTextColor(COLOR_WHITE);
+            float offset = buttonOffsets.containsKey(button) ? buttonOffsets.get(button) : 0f;
+            int color = GradientManager.getRainbowColorWithOffset(offset);
+            GradientDrawable activeBg = new GradientDrawable();
+            activeBg.setColor(color);
+            if (isLastItem) {
+                activeBg.setCornerRadii(new float[]{
+                    0, 0,
+                    0, 0,
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6),
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6)
+                });
+            } else {
+                activeBg.setCornerRadius(0);
+            }
+            button.setBackgroundDrawable(activeBg);
+        } else {
+            button.setTextColor(COLOR_BLUE);
+            GradientDrawable resetBg = new GradientDrawable();
+            resetBg.setColor(COLOR_TRANSPARENT);
+            if (isLastItem) {
+                resetBg.setCornerRadii(new float[]{
+                    0, 0,
+                    0, 0,
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6),
+                    dip2px(button.getContext(), 6), dip2px(button.getContext(), 6)
+                });
+            } else {
+                resetBg.setCornerRadius(0);
+            }
+            button.setBackgroundDrawable(resetBg);
             button.getPaint().setShader(null);
             button.invalidate();
         }
@@ -467,16 +551,28 @@ public class MenuHook implements IXposedHookLoadPackage {
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                int color = getRainbowColor(hue);
+                if (gradientManager == null) return;
                 for (int i = 0; i < activeButtons.size(); i++) {
                     TextView btn = activeButtons.get(i);
                     if (btn != null) {
+                        float offset = buttonOffsets.containsKey(btn) ? buttonOffsets.get(btn) : 0f;
+                        int color = GradientManager.getRainbowColorWithOffset(offset);
                         GradientDrawable bg = new GradientDrawable();
                         bg.setColor(color);
+                        boolean isLast = isLastItemMap.containsKey(btn) && isLastItemMap.get(btn);
+                        if (isLast) {
+                            bg.setCornerRadii(new float[]{
+                                0, 0,
+                                0, 0,
+                                dip2px(btn.getContext(), 6), dip2px(btn.getContext(), 6),
+                                dip2px(btn.getContext(), 6), dip2px(btn.getContext(), 6)
+                            });
+                        } else {
+                            bg.setCornerRadius(0);
+                        }
                         btn.setBackgroundDrawable(bg);
                     }
                 }
-                hue = (hue + 2f) % 360f;
                 handler.postDelayed(this, 50);
             }
         }, 50);
@@ -504,12 +600,10 @@ public class MenuHook implements IXposedHookLoadPackage {
         }, 5000);
     }
 
-    private int getRainbowColor(float hue) {
-        float[] hsv = new float[] { hue, 1.0f, 1.0f };
-        return Color.HSVToColor(hsv);
-    }
-
-    private int dip2px(Context context, float dp) {
+    private static int dip2px(Context context, float dp) {
+        if (context == null) {
+            context = appContext;
+        }
         float scale = context.getResources().getDisplayMetrics().density;
         return (int) (dp * scale + 0.5f);
     }
